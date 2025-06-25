@@ -1,0 +1,44 @@
+﻿<Window x:Class="Trader.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Trader"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+    <Grid ShowGridLines="True" Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Button Grid.Row="0" Content="Find Flips" Click="OnFlipButtonClick" Padding="4" Margin="0 4"></Button>
+        <TextBlock Grid.Row="1" Text="Flips" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" Margin="8"></TextBlock>
+
+        <ListView Grid.Row="2" ItemsSource="{Binding (local:MainWindow.Flips)}">
+            <ListView.View>
+                <GridView AllowsColumnReorder="true" ColumnHeaderToolTip="Flips">
+                    <GridViewColumn Header="Item Name" Width="100" DisplayMemberBinding="{Binding Path=SellOrder.Name}"/>
+                    <GridViewColumn Header="Budget" Width="100" DisplayMemberBinding="{Binding Path=Budget}"/>
+                    <GridViewColumn Header="Buy From" Width="100" DisplayMemberBinding="{Binding Path=BuyOrder.Name}"/>
+                    <GridViewColumn Header="Upgrade Info" Width="100" DisplayMemberBinding="{Binding Path=UpgradeInfo}"/>
+                    <GridViewColumn Header="Sell To" Width="100" DisplayMemberBinding="{Binding Path=SellOrder.LocationName}"/>
+                    
+                    <GridViewColumn Width="100">
+                        <GridViewColumnHeader>Profit
+                            <GridViewColumnHeader.ContextMenu>
+                                <ContextMenu Name="LastNameCM">
+                                    <MenuItem Header="Ascending" />
+                                    <MenuItem Header="Descending" />
+                                </ContextMenu>
+                            </GridViewColumnHeader.ContextMenu>
+                        </GridViewColumnHeader>
+                    </GridViewColumn>
+                </GridView>
+
+            </ListView.View>
+        </ListView>
+
+    </Grid>
+</Window>

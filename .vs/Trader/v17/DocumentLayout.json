@@ -1,0 +1,36 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\romai\\Downloads\\Albion Trader\\Trader\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{ED435158-D676-4AC9-8193-7621CB6EF267}|Trader\\Trader.csproj|c:\\users\\romai\\downloads\\albion trader\\trader\\trader\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
+      "RelativeMoniker": "D:0:0:{ED435158-D676-4AC9-8193-7621CB6EF267}|Trader\\Trader.csproj|solutionrelative:trader\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "MainWindow.xaml",
+              "DocumentMoniker": "C:\\Users\\romai\\Downloads\\Albion Trader\\Trader\\Trader\\MainWindow.xaml",
+              "RelativeDocumentMoniker": "Trader\\MainWindow.xaml",
+              "ToolTip": "C:\\Users\\romai\\Downloads\\Albion Trader\\Trader\\Trader\\MainWindow.xaml",
+              "RelativeToolTip": "Trader\\MainWindow.xaml",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
+              "WhenOpened": "2025-06-18T14:57:19.147Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

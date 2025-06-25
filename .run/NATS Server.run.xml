@@ -1,0 +1,27 @@
+﻿<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="NATS Server" type="docker-deploy" factoryName="docker-image" server-name="Docker">
+    <deployment type="docker-image">
+      <settings>
+        <option name="imageTag" value="nats" />
+        <option name="containerName" value="NATSServer" />
+        <option name="portBindings">
+          <list>
+            <DockerPortBindingImpl>
+              <option name="containerPort" value="4222" />
+              <option name="hostPort" value="4222" />
+            </DockerPortBindingImpl>
+            <DockerPortBindingImpl>
+              <option name="containerPort" value="6222" />
+              <option name="hostPort" value="6222" />
+            </DockerPortBindingImpl>
+            <DockerPortBindingImpl>
+              <option name="containerPort" value="8222" />
+              <option name="hostPort" value="8222" />
+            </DockerPortBindingImpl>
+          </list>
+        </option>
+      </settings>
+    </deployment>
+    <method v="2" />
+  </configuration>
+</component>
