@@ -1,4 +1,5 @@
-﻿namespace Trader;
+﻿using StackExchange.Redis;
+namespace Trader;
 
 public class Order
 {
@@ -19,4 +20,19 @@ public class Order
     public string AuctionType { get; set; }
 
     public DateTime Expires { get; set; }
+
+    public Order()
+    {
+        
+    }
+    
+    public Order(string LocationID, string itemGroupTypeID, int qualityLevel, int enchantmentLevel, long unitPriceSilver)
+    {
+        LocationId = LocationID;
+        ItemGroupTypeId = itemGroupTypeID;
+        ItemTypeId = ItemGroupTypeId + (EnchantmentLevel > 0 ? $"@{EnchantmentLevel}" :  string.Empty);
+        QualityLevel = qualityLevel;
+        EnchantmentLevel = enchantmentLevel;
+        UnitPriceSilver = unitPriceSilver;
+    }
 }

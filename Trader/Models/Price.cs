@@ -15,4 +15,6 @@ public class Price
     public int EnchantmentLevel { get; set; }
 
     public long Timestamp { get; set; }
+    
+    public long VolumeSold { get; set; }
 }

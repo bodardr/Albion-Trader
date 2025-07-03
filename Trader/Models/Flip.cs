@@ -20,7 +20,7 @@ public struct Flip
         ? $"x{UpgradeItemCount} {SellOrder.ItemTypeId[..2]}.{SellOrder.EnchantmentLevel} to {SellOrder.ItemTypeId[..2]}.{BuyOrder.EnchantmentLevel}\nCost: {TotalUpgradeCost}"
         : string.Empty;
 
-    public Flip(Row buyOrder, Document sellOrder)
+    public Flip(Row buyOrder, Order sellOrder)
     {
         BuyOrder = new Order
         {
@@ -35,24 +35,24 @@ public struct Flip
             UnitPriceSilver = (long)buyOrder["$.UnitPriceSilver"] / 10000,
         };
 
-        SellOrder = new Order
+        SellOrder = new Order()
         {
-            Id = (long)sellOrder["$.Id"],
-            Amount = (int)sellOrder["$.Amount"],
-            AuctionType = "request",
-            EnchantmentLevel = (int)sellOrder["$.EnchantmentLevel"],
-            QualityLevel = (int)sellOrder["$.QualityLevel"],
-            LocationId = sellOrder["$.LocationId"].ToString(),
-            ItemTypeId = sellOrder["$.ItemTypeId"].ToString(),
-            ItemGroupTypeId = sellOrder["$.ItemGroupTypeId"].ToString(),
-            UnitPriceSilver = (long)sellOrder["$.UnitPriceSilver"] / 10000,
+            Id = sellOrder.Id,
+            Amount = sellOrder.Amount,
+            AuctionType = sellOrder.AuctionType,
+            EnchantmentLevel = sellOrder.EnchantmentLevel,
+            QualityLevel = sellOrder.QualityLevel,
+            LocationId = sellOrder.LocationId,
+            ItemTypeId = sellOrder.ItemTypeId,
+            ItemGroupTypeId = sellOrder.ItemGroupTypeId,
+            UnitPriceSilver = sellOrder.UnitPriceSilver / 10000,
+            Expires = sellOrder.Expires,
         };
-
         Profit = ProfitUtility.Calculate(BuyOrder.UnitPriceSilver, SellOrder.UnitPriceSilver);
     }
 
 
-    public Flip(Row buyOrderRow, Document sellOrderDoc, long totalUpgradeCost, int upgradeItemCount) : this(buyOrderRow,
+    public Flip(Row buyOrderRow, Order sellOrderDoc, long totalUpgradeCost, int upgradeItemCount) : this(buyOrderRow,
         sellOrderDoc)
     {
         TotalUpgradeCost = totalUpgradeCost;

@@ -9,27 +9,39 @@ namespace Trader;
 /// </summary>
 public partial class MainWindow : Window, INotifyPropertyChanged
 {
-    private Listener listener = new();
     private Database db = new();
+    private Listener listener;
 
     public List<Flip> Flips => db.Flips;
 
     public event PropertyChangedEventHandler? PropertyChanged;
-    
+
     public MainWindow()
     {
         InitializeComponent();
-        
+
         ItemDictionary.Initialize();
-        
+
         db.Start();
-        
-        listener.Database = db;
+
+        listener = new();
         listener.Listen();
+
+        _ = UpgradeUtility.GetEnchantPrices();
     }
 
     private void OnFlipButtonClick(object sender, RoutedEventArgs e)
     {
         db.GetFlips(MarketLocation.Caerleon, MarketLocation.BlackMarket);
+    }
+    
+    private void OnCraftingFlipButtonClick(object sender, RoutedEventArgs e)
+    {
+        _ = CraftingUtility.GetCraftingFlips();
+    }
+    
+    private void OnTravelingFlipButtonClick(object sender, RoutedEventArgs e)
+    {
+        _ = TravelingUtility.GetTravelingFlips(true);
     }
 }

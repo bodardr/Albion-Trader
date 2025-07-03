@@ -30,9 +30,11 @@ public class Database
     private IDatabase db;
     private IJsonCommands json;
 
-    private Dictionary<string, long[,]> enchantCostsPerTier;
-
     public List<Flip> Flips { get; private set; } = new();
+
+    public IDatabase DB => db;
+    
+    public static Database Instance { get; private set; }
 
     public void Start()
     {
@@ -40,7 +42,8 @@ public class Database
         json = db.JSON();
 
         CreateIndex();
-        GetEnchantPrices();
+
+        Instance = this;
     }
 
     private void CreateIndex()
@@ -80,11 +83,13 @@ public class Database
             .AddNumericField(new FieldName("$.UnitPriceSilver", "UnitPriceSilver"))
             .AddNumericField(new FieldName("$.QualityLevel", "QualityLevel"))
             .AddNumericField(new FieldName("$.EnchantmentLevel", "EnchantmentLevel"))
-            .AddNumericField(new FieldName("$.Timestamp", "Timestamp"));
+            .AddNumericField(new FieldName("$.Timestamp", "Timestamp"))
+            .AddNumericField(new FieldName("$.VolumeSold", "VolumeSold"));
 
         db.FT().Create("idx:prices", FTCreateParams.CreateParams().On(IndexDataType.JSON).Prefix("prices:"),
             pricesSchema);
     }
+
     public async Task AddOrders(string ordersJSON)
     {
         var orders = JObject.Parse(ordersJSON)["Orders"];
@@ -101,6 +106,10 @@ public class Database
         foreach (var child in children)
         {
             var location = child["LocationId"].Value<string>();
+
+            if (location.Equals(((int)MarketLocation.CaerleonAuction2).ToString()))
+                location = ((int)MarketLocation.Caerleon).ToString();
+
             child["LocationId"] = location;
 
             var key = $"orders:{location}:{child["ItemGroupTypeId"].Value<string>()}:{child["Id"].Value<string>()}";
@@ -115,9 +124,12 @@ public class Database
         pipeline.Execute();
         await Task.WhenAll(tasks);
     }
+
     public async Task GetFlips(MarketLocation from, MarketLocation to)
     {
-        var allBuyOrders = db.FT().Aggregate("idx:orders",
+        Flips.Clear();
+
+        var buyOrdersAggregation = db.FT().Aggregate("idx:orders",
             new AggregationRequest($"@LocationID:{{{(int)to}}}").Load(
                 new("$.ItemTypeId"),
                 new("$.ItemGroupTypeId"),
@@ -127,63 +139,50 @@ public class Database
                 new("$.EnchantmentLevel"),
                 new("$.Amount")));
 
+        var sellOrdersAggregation = db.FT().Aggregate("idx:orders",
+            new AggregationRequest($"@LocationID:{{{(int)from}}}")
+                .GroupBy(["@ItemGroupTypeID", "@QualityLevel", "@EnchantmentLevel"],
+                    [Reducers.Min("@UnitPriceSilver").As("min_price")])
+                .SortBy(new SortedField("@min_price")).Limit(100000));
 
-        var sellOrders = new List<Task<SearchResult>>();
-        Flips.Clear();
-
-        var tasks = new List<Task>();
-
-        var trBatchCount = 0;
-        for (int i = 0; i < allBuyOrders.TotalResults; i++)
+        var sellOrders = new Dictionary<string, List<Order>>();
+        for (int i = 0; i < sellOrdersAggregation.TotalResults; i++)
         {
-            var order = allBuyOrders.GetRow(i);
-            var price = order["$.UnitPriceSilver"];
-            var quality = order["$.QualityLevel"];
-            var enchantmentLevel = order["$.EnchantmentLevel"];
+            var row = sellOrdersAggregation.GetRow(i);
+            var order = new Order(((int)from).ToString(), (string)row["ItemGroupTypeID"],
+                int.Parse(row["QualityLevel"]),
+                int.Parse(row["EnchantmentLevel"]),
+                long.Parse(row["min_price"]));
 
-            var query = new Query($"@LocationID:{{{(int)from}}} @ItemGroupTypeID:{{{order["$.ItemGroupTypeId"]}}}")
-                .AddFilter(new Query.NumericFilter("UnitPriceSilver", 0, (double)price - 1))
-                .AddFilter(new Query.NumericFilter("EnchantmentLevel", 0, (double)enchantmentLevel))
-                .AddFilter(new Query.NumericFilter("QualityLevel", (double)quality, double.PositiveInfinity))
-                .Limit(0, 100)
-                .SetSortBy("UnitPriceSilver", true).ReturnFields(
-                    "$.ItemTypeId",
-                    "$.ItemGroupTypeId",
-                    "$.LocationId",
-                    "$.UnitPriceSilver",
-                    "$.QualityLevel",
-                    "$.EnchantmentLevel",
-                    "$.Amount");
-
-            sellOrders.Add(db.FT().SearchAsync("idx:orders", query));
+            if (!sellOrders.TryAdd(order.ItemGroupTypeId, [order]))
+                sellOrders[order.ItemGroupTypeId].Add(order);
         }
 
-        await Task.WhenAll(sellOrders);
-
-        for (var i = 0; i < sellOrders.Count; i++)
+        for (var i = 0; i < buyOrdersAggregation.TotalResults; i++)
         {
-            if (!sellOrders[i].IsCompleted)
-                continue;
+            var buyOrder = buyOrdersAggregation.GetRow(i);
 
-            var buyOrder = allBuyOrders.GetRow(i);
+            var buyOrderPrice = long.Parse(buyOrder["$.UnitPriceSilver"]);
+            var buyOrderItemName = buyOrder["$.ItemGroupTypeId"].ToString();
             var buyOrderEnchantmentLevel = (int)buyOrder["$.EnchantmentLevel"];
+            var buyOrderQualityLevel = (int)buyOrder["$.QualityLevel"];
             var enchantItemCount = prefixToUpgradeAmounts[buyOrder["$.ItemTypeId"].ToString()[3..5]];
 
-            var sellOrdersForItem = sellOrders[i].Result;
-
-            if (sellOrdersForItem.TotalResults <= 0)
+            if (!sellOrders.TryGetValue(buyOrderItemName, out var sellOrdersForItem))
                 continue;
 
             int currentEnchantLevel = -1;
-            for (int j = 0; j < sellOrdersForItem.TotalResults; j++)
+            for (int j = 0; j < sellOrdersForItem.Count; j++)
             {
-                var sellOrder = sellOrdersForItem.Documents[j];
-                var sellOrderEnchantLevel = (int)sellOrder["$.EnchantmentLevel"];
+                var sellOrder = sellOrdersForItem[j];
 
-                if (currentEnchantLevel == sellOrderEnchantLevel)
+                if (sellOrder.UnitPriceSilver >= buyOrderPrice)
+                    break;
+
+                if (currentEnchantLevel == sellOrder.EnchantmentLevel || buyOrderQualityLevel > sellOrder.QualityLevel)
                     continue;
 
-                if (sellOrderEnchantLevel == buyOrderEnchantmentLevel)
+                if (sellOrder.EnchantmentLevel == buyOrderEnchantmentLevel)
                 {
                     Flips.Add(new Flip(buyOrder, sellOrder));
                     break;
@@ -194,8 +193,9 @@ public class Database
                     continue;
 
                 //Check for upgrade enchant
-                currentEnchantLevel = sellOrderEnchantLevel;
-                if (CanFlipUpgrade(sellOrder, buyOrder, sellOrderEnchantLevel, buyOrderEnchantmentLevel,
+                currentEnchantLevel = sellOrder.EnchantmentLevel;
+                if (UpgradeUtility.CanFlipUpgrade(sellOrder, buyOrder, sellOrder.EnchantmentLevel,
+                    buyOrderEnchantmentLevel,
                     enchantItemCount, from,
                     out var materialCost))
                     Flips.Add(new Flip(buyOrder, sellOrder, materialCost, enchantItemCount));
@@ -204,49 +204,21 @@ public class Database
 
         Flips.Sort((x, y) => y.Profit.CompareTo(x.Profit));
     }
-    private async Task GetEnchantPrices()
-    {
-        var allEnchantsQuery = new TraderQuery().OfItems("RUNE", "SOUL", "RELIC").OfTiers(4..9);
 
-        var json = await allEnchantsQuery.GetPriceHistoryJSON(TraderQuery.TimeScale.Daily);
-
-        await AddPrices(json);
-
-        var prices = await allEnchantsQuery.GetPrices(db);
-
-        enchantCostsPerTier = new();
-        foreach (var (item, pricesPerLocation) in prices)
-        {
-            var nameSplit = item.Split('_');
-            var tier = int.Parse(nameSplit[0][1..]);
-            var index = nameSplit[1] switch
-            {
-                "RELIC" => 2,
-                "SOUL" => 1,
-                "RUNE" or _ => 0,
-            };
-
-            foreach (var (location, price) in pricesPerLocation)
-            {
-                enchantCostsPerTier.TryAdd(location, new long[5, 3]);
-                enchantCostsPerTier[location][tier - 4, index] = price.UnitPriceSilver;
-            }
-        }
-    }
-
-    public async Task AddPrices(string priceHistoryJSON)
+    public async Task AddPricesFromAPI(string priceHistoryJSON)
     {
         var jArray = JArray.Parse(priceHistoryJSON);
         var pipeline = new Pipeline(db);
 
-        var epoch = DateTime.UnixEpoch;
-
         List<Task> tasks = new List<Task>();
         foreach (var itemPrice in jArray)
         {
+            if (!itemPrice.HasValues)
+                continue;
+
             var location = Enum.Parse<MarketLocation>(itemPrice["location"].ToString().Replace(" ", string.Empty));
             var itemTypeID = itemPrice["item_id"].ToObject<string>();
-            var quality = itemPrice["quality"].ToObject<int>();
+            var quality = itemPrice["quality"].ToObject<long>();
 
             var priceHistory = itemPrice["data"].Children();
             foreach (var priceHistoryItem in priceHistory)
@@ -254,45 +226,96 @@ public class Database
                 var timestamp = DateTime.Parse(priceHistoryItem["timestamp"].ToString());
 
                 var indexOfAt = itemTypeID.LastIndexOf('@');
-                var totalMS = (long)(timestamp - epoch).TotalMilliseconds;
 
                 var price = new Price
                 {
                     ItemTypeId = itemTypeID,
                     LocationId = ((int)location).ToString(),
                     QualityLevel = quality,
-                    Timestamp = totalMS,
+                    Timestamp = timestamp.Ticks,
                     UnitPriceSilver = priceHistoryItem["avg_price"].ToObject<long>(),
-                    EnchantmentLevel = indexOfAt >= 0 ? int.Parse(itemTypeID[(indexOfAt + 1)..]) : 0
+                    EnchantmentLevel = indexOfAt >= 0 ? int.Parse(itemTypeID[(indexOfAt + 1)..]) : 0,
+                    VolumeSold = priceHistoryItem["item_count"].ToObject<long>(),
                 };
 
-                tasks.Add(pipeline.Json.SetAsync($"prices:{price.LocationId}:{itemTypeID}:{quality}:{totalMS}",
-                    "$",
-                    JsonConvert.SerializeObject(price)));
+                tasks.Add(pipeline.Json.SetAsync($"prices:{itemTypeID}:{price.LocationId}:{quality}:{timestamp.Ticks}",
+                    "$", JsonConvert.SerializeObject(price)));
             }
         }
-        pipeline.Execute();
 
-        Task.WhenAll(tasks);
+        pipeline.Execute();
+        await Task.WhenAll(tasks);
     }
 
-    private bool CanFlipUpgrade(Document sellOrder, Row buyOrder, int enchantLevelFrom, int enchantLevelTo,
-        int upgradeAmount, MarketLocation location, out long materialCost)
+    public async Task AddPrices(string? priceHistoryJSON)
     {
-        materialCost = 0;
-        var profit = ProfitUtility.Calculate((long)buyOrder["$.UnitPriceSilver"] / 10000,
-            (long)sellOrder["$.UnitPriceSilver"] / 10000);
+        var jObject = JObject.Parse(priceHistoryJSON);
 
-        if (profit < 0)
-            return false;
+        var itemID = ItemDictionary.ItemNumberToID[jObject["AlbionId"].ToObject<int>()];
+        var qualityLevel = jObject["QualityLevel"].Value<int>();
+        var locationID = jObject["LocationId"].Value<string>();
 
-        var tier = int.Parse(buyOrder["$.ItemTypeId"].ToString()[1].ToString());
+        if (locationID.Equals(((int)MarketLocation.CaerleonAuction2).ToString()))
+            locationID = ((int)MarketLocation.Caerleon).ToString();
 
-        var enchantCostsForTier = enchantCostsPerTier[((int)location).ToString()];
+        var marketHistories = jObject["MarketHistories"].Value<JArray>();
 
-        for (int i = enchantLevelFrom; i < enchantLevelTo; i++)
-            materialCost += enchantCostsForTier[tier - 4, i] * upgradeAmount;
+        var pipeline = new Pipeline(db);
+        var tasks = new List<Task>();
 
-        return profit - materialCost > 0;
+        var prices = new List<long>();
+        var volumes = new List<long>();
+
+        DateTime currentTime = default;
+        foreach (var marketHistoryItem in marketHistories)
+        {
+            var itemAmount = marketHistoryItem["ItemAmount"].Value<long>();
+            var silverAmount = marketHistoryItem["SilverAmount"].ToObject<long>();
+            ;
+
+            var indexOfAt = itemID.LastIndexOf('@');
+
+            var timestamp = DateTime.FromBinary(long.Parse(marketHistoryItem["Timestamp"].ToString()));
+
+            prices.Add(silverAmount / itemAmount / 10000);
+            volumes.Add(itemAmount);
+
+            if (currentTime == default)
+            {
+                currentTime = timestamp;
+            }
+            else if (timestamp.Date != currentTime.Date)
+            {
+                var totalVolume = volumes.Sum();
+
+                long avgPrice = 0;
+                for (int i = 0; i < volumes.Count; i++)
+                    avgPrice += volumes[i] * prices[i];
+
+                avgPrice /= totalVolume;
+
+                prices.Clear();
+                volumes.Clear();
+
+                var price = new Price
+                {
+                    ItemTypeId = itemID,
+                    LocationId = locationID,
+                    QualityLevel = qualityLevel,
+                    Timestamp = timestamp.Ticks,
+                    UnitPriceSilver = avgPrice,
+                    EnchantmentLevel = indexOfAt >= 0 ? int.Parse(itemID[(indexOfAt + 1)..]) : 0,
+                    VolumeSold = totalVolume,
+                };
+
+                tasks.Add(pipeline.Json.SetAsync($"prices:{itemID}:{locationID}:{qualityLevel}:{timestamp.Ticks}",
+                    "$", JsonConvert.SerializeObject(price)));
+
+                currentTime = timestamp;
+            }
+        }
+
+        pipeline.Execute();
+        await Task.WhenAll(tasks);
     }
 }

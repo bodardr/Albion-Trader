@@ -8,10 +8,9 @@ namespace Trader;
 public class Listener
 {
     public List<Order> Orders = new List<Order>();
-    public Database Database { get; set; }
     
     private NatsClient nats = new NatsClient("localhost:4222");
-
+    
     public void Listen()
     {
         ListenToOrders();
@@ -22,7 +21,7 @@ public class Listener
         await foreach (NatsMsg<string> msg in nats.SubscribeAsync<string>(subject: "marketorders.ingest"))
         {
             Console.WriteLine($"Received: {msg.Subject}: {msg.Data}");
-            _ = Database.AddOrders(msg.Data);
+            _ = Database.Instance.AddOrders(msg.Data);
         }
     }
     private async void ListenToPrices()
@@ -30,7 +29,7 @@ public class Listener
         await foreach (NatsMsg<string> msg in nats.SubscribeAsync<string>(subject: "markethistories.ingest"))
         {
             Console.WriteLine($"Received: {msg.Subject}: {msg.Data}");
-            _ = Database.AddPrices(msg.Data);
+            _ = Database.Instance.AddPrices(msg.Data);
         }
     }
 }

@@ -1,14 +1,17 @@
-﻿using System.Net.Http;
+﻿using System.Net;
+using System.Net.Http;
 using System.Text;
 using Newtonsoft.Json;
 using NRedisStack;
+using NRedisStack.RedisStackCommands;
 using NRedisStack.Search;
+using NRedisStack.Search.Aggregation;
 using StackExchange.Redis;
 namespace Trader;
 
 public class TraderQuery
 {
-    private const string baseURL = "https://west.albion-online-data.com/api/v2/stats/";
+    private const int GET_CHAR_LIMIT = 4096;
 
     private int[] enchants = [0];
     private int[] tiers;
@@ -65,51 +68,131 @@ public class TraderQuery
 
     public async Task<string> GetPriceHistoryJSON(TimeScale timeScale)
     {
-        var url = $"{baseURL}history/{GetAllParams()}";
-
+        var endStr = GetAllParams();
         if (timeScale == TimeScale.Daily)
-            url += "time-scale=24";
+            endStr += (string.IsNullOrEmpty(endStr) ? "?" : '&') + "time-scale=24";
         else
-            url = url.TrimEnd('&');
+            endStr = endStr.TrimEnd('&');
 
-        var response = await new HttpClient().GetAsync(url);
-        return await response.Content.ReadAsStringAsync();
+        var charLimit = GET_CHAR_LIMIT - endStr.Length;
+        var str = new StringBuilder($"{API.BASE_URL}history/");
+
+        var queries = new List<string>();
+        var allNames = GetItemNames();
+
+        foreach (var name in allNames)
+        {
+            if (str.Length + name.Length + 1 < charLimit)
+            {
+                str.Append(name + ',');
+            }
+            else
+            {
+                //Remove the last comma
+                str.Remove(str.Length - 1, 1);
+                str.Append(endStr);
+                queries.Add(str.ToString());
+
+                //Start a new query
+                str = new StringBuilder($"{API.BASE_URL}history/");
+            }
+        }
+
+        //Remove the last comma
+        str.Remove(str.Length - 1, 1);
+        str.Append(endStr);
+        queries.Add(str.ToString());
+
+        var getRequests = new List<Task<HttpResponseMessage>>();
+
+
+        var clientHandler = new HttpClientHandler()
+        {
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+        };
+
+        using var httpClient = new HttpClient(clientHandler);
+        foreach (var query in queries)
+            getRequests.Add(httpClient.GetAsync(query));
+
+        await Task.WhenAll(getRequests);
+
+        var responses = new List<Task<string>>();
+
+        foreach (var request in getRequests)
+            responses.Add(request.Result.Content.ReadAsStringAsync());
+
+        await Task.WhenAll(responses);
+
+        var finalResponse = new StringBuilder();
+        for (var i = 0; i < responses.Count; i++)
+        {
+            var response = responses[i];
+
+            // Remove the ']' character.
+            if (i > 0)
+            {
+                finalResponse.Remove(finalResponse.Length - 1, 1);
+                finalResponse.Append(',');
+                finalResponse.Append(response.Result[1..]);
+            }
+            else
+            {
+                finalResponse.Append(response.Result);
+            }
+        }
+
+        return finalResponse.ToString();
     }
 
     private string GetAllParams()
     {
-        var str = new StringBuilder();
+        var str = new StringBuilder("?");
 
-        if (itemNames.Length < 1 || tiers.Length < 1 || enchants.Length < 1)
-        {
-            throw new ArgumentException("Object must have itemNames, tiers and enchants defined");
-        }
+        if (itemNames.Length < 1)
+            throw new ArgumentException("Object must have some itemNames defined");
 
-        str.AppendJoin(',', GetItemNames());
-        str.Append('?');
+        var now = DateTime.UtcNow;
+        var threeDaysAgo = now.AddDays(-2);
+        str.Append($"date={threeDaysAgo:dd-MM-yyyy}&end_date={now:dd-MM-yyyy}");
 
         if (locations != null && locations.Length > 0)
-            str.Append($"locations={string.Join(',', locations)}&");
+            str.Append($"&locations={string.Join(',', locations)}&");
 
         if (qualities != null && qualities.Length > 0)
-            str.Append($"qualities={string.Join(',', qualities)}&");
+            str.Append($"&qualities={string.Join(',', qualities)}&");
 
         return str.ToString();
     }
-    public List<string> GetItemNames()
+
+    public string[] GetItemNames()
     {
+        if (tiers == null || tiers.Length < 1)
+            return itemNames;
+
         List<string> names = new List<string>((int)(itemNames.Length * tiers.Length * MathF.Max(1, enchants.Length)));
 
+        var hasEnchants = enchants.Length > 0;
         foreach (var item in itemNames)
         foreach (var tier in tiers)
-        foreach (var enchant in enchants)
         {
-            if (enchant > 0)
-                names.Add($"T{tier}_{item}@{enchant}");
+            if (hasEnchants)
+            {
+                foreach (var enchant in enchants)
+                {
+                    if (enchant > 0)
+                        names.Add($"T{tier}_{item}@{enchant}");
+                    else
+                        names.Add($"T{tier}_{item}");
+                }
+            }
             else
+            {
                 names.Add($"T{tier}_{item}");
+            }
         }
-        return names;
+
+        return names.ToArray();
     }
 
     public async Task<Dictionary<string, Dictionary<string, Price>>> GetPrices(IDatabase db)
@@ -117,31 +200,32 @@ public class TraderQuery
         var itemNames = GetItemNames();
 
         locations ??= Array.ConvertAll(Enum.GetValues<MarketLocation>(), x => ((int)x).ToString());
-        
-        var pipeline = new Pipeline(db);
 
-        var tasks = new Dictionary<string, Dictionary<string, Task<SearchResult>>>();
-        foreach (var item in itemNames)
-        foreach (var location in locations)
-        {
-            tasks.TryAdd(item, new());
-            tasks[item][location] = pipeline.Ft.SearchAsync("idx:prices",
-                new Query($"@LocationID:{{{location}}} @ItemGroupTypeID:{{{item}}}").SetSortBy("Timestamp", false).Limit(0, 1));
-        }
+        var aggregation = db.FT().Aggregate("idx:prices",
+            new AggregationRequest($"@ItemGroupTypeID:{{{string.Join(" | ", itemNames)}}}")
+            .GroupBy(["@LocationID", "@ItemGroupTypeID", "@UnitPriceSilver", "@Timestamp", "@EnchantmentLevel", "@VolumeSold"],
+                    [Reducers.Max("@Timestamp").As("latest_time")]));
 
-        pipeline.Execute();
-
-        await Task.WhenAll(tasks.SelectMany(x => x.Value.Values).ToList());
-        
         var items = new Dictionary<string, Dictionary<string, Price>>();
-        foreach (var (item, pricesPerLocation) in tasks)
-        foreach (var (location, price) in pricesPerLocation)
+
+        for (int i = 0; i < aggregation.TotalResults; i++)
         {
-            var searchResult = price.Result;
+            var item = aggregation.GetRow(i);
             
-            items.TryAdd(item, new());
-            if (searchResult.TotalResults > 0)
-                items[item][location] = JsonConvert.DeserializeObject<Price>(searchResult.ToJson()[0]);
+            var itemID = (string)item["ItemGroupTypeID"];
+            var locationID = (string)item["LocationID"];
+            
+            items.TryAdd(itemID, new());
+                items[itemID][locationID] = new Price()
+                {
+                    EnchantmentLevel = (int)item["EnchantmentLevel"],
+                    ItemTypeId = itemID,
+                    LocationId = locationID,
+                    QualityLevel = (int)item["QualityLevel"],
+                    Timestamp = long.Parse((string)item["Timestamp"]),
+                    UnitPriceSilver = (long)item["UnitPriceSilver"],
+                    VolumeSold = long.Parse(item["VolumeSold"])
+                };
         }
 
         return items;

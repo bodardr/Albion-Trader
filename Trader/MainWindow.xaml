@@ -11,12 +11,16 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Button Grid.Row="0" Content="Find Flips" Click="OnFlipButtonClick" Padding="4" Margin="0 4"></Button>
-        <TextBlock Grid.Row="1" Text="Flips" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" Margin="8"></TextBlock>
+        <Button Grid.Row="1" Content="Find Crafting Flips" Click="OnCraftingFlipButtonClick" Padding="4" Margin="0 4"></Button>
+        <Button Grid.Row="2" Content="Find Traveling Flips" Click="OnTravelingFlipButtonClick" Padding="4" Margin="0 4"></Button>
+        <TextBlock Grid.Row="3" Text="Flips" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" Margin="8"></TextBlock>
 
-        <ListView Grid.Row="2" ItemsSource="{Binding (local:MainWindow.Flips)}">
+        <ListView Grid.Row="4" ItemsSource="{Binding (local:MainWindow.Flips)}">
             <ListView.View>
                 <GridView AllowsColumnReorder="true" ColumnHeaderToolTip="Flips">
                     <GridViewColumn Header="Item Name" Width="100" DisplayMemberBinding="{Binding Path=SellOrder.Name}"/>
