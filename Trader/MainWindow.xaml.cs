@@ -27,7 +27,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         listener = new();
         listener.Listen();
 
-        _ = UpgradeUtility.GetEnchantPrices();
+        _ = UpgradeUtility.UpdateEnchantPrices(false);
     }
 
     private void OnFlipButtonClick(object sender, RoutedEventArgs e)

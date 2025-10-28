@@ -6,14 +6,13 @@ public static class UpgradeUtility
     private static Dictionary<string, long[,]> enchantCostsPerTier;
 
     public static IReadOnlyDictionary<string, long[,]> EnchantCostsPerTier => enchantCostsPerTier;
-    
-    public static async Task GetEnchantPrices()
+
+    public static async Task UpdateEnchantPrices(bool fetchFromAODB = false)
     {
         var allEnchantsQuery = new TraderQuery().OfItems("RUNE", "SOUL", "RELIC").OfTiers(4..9);
 
-        var json = await allEnchantsQuery.GetPriceHistoryJSON(TraderQuery.TimeScale.Daily);
-
-        await Database.Instance.AddPricesFromAPI(json);
+        if (fetchFromAODB)
+            await FetchEnchantPricesFromAODB(allEnchantsQuery);
 
         var prices = await allEnchantsQuery.GetPrices(Database.Instance.DB);
 
@@ -35,6 +34,11 @@ public static class UpgradeUtility
                 enchantCostsPerTier[location][tier - 4, index] = price.UnitPriceSilver;
             }
         }
+    }
+    private static async Task FetchEnchantPricesFromAODB(TraderQuery allEnchantsQuery)
+    {
+        var json = await allEnchantsQuery.GetPriceHistoryJSON(TraderQuery.TimeScale.Daily);
+        await Database.Instance.AddPricesFromAPI(json);
     }
 
     public static bool CanFlipUpgrade(Order sellOrder, Row buyOrder, int enchantLevelFrom, int enchantLevelTo,

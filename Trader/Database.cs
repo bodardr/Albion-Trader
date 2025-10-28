@@ -129,6 +129,8 @@ public class Database
     {
         Flips.Clear();
 
+        await UpgradeUtility.UpdateEnchantPrices();
+
         var buyOrdersAggregation = db.FT().Aggregate("idx:orders",
             new AggregationRequest($"@LocationID:{{{(int)to}}}").Load(
                 new("$.ItemTypeId"),
@@ -198,7 +200,7 @@ public class Database
                     buyOrderEnchantmentLevel,
                     enchantItemCount, from,
                     out var materialCost))
-                    Flips.Add(new Flip(buyOrder, sellOrder, materialCost, enchantItemCount));
+                    Flips.Add(new Flip(buyOrder, sellOrder, Math.Max(1,materialCost), enchantItemCount));
             }
         }
 
@@ -271,14 +273,11 @@ public class Database
         {
             var itemAmount = marketHistoryItem["ItemAmount"].Value<long>();
             var silverAmount = marketHistoryItem["SilverAmount"].ToObject<long>();
-            ;
 
             var indexOfAt = itemID.LastIndexOf('@');
 
             var timestamp = DateTime.FromBinary(long.Parse(marketHistoryItem["Timestamp"].ToString()));
 
-            prices.Add(silverAmount / itemAmount / 10000);
-            volumes.Add(itemAmount);
 
             if (currentTime == default)
             {
@@ -313,6 +312,9 @@ public class Database
 
                 currentTime = timestamp;
             }
+            
+            prices.Add(silverAmount / itemAmount / 10000);
+            volumes.Add(itemAmount);
         }
 
         pipeline.Execute();
