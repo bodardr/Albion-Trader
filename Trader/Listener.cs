@@ -7,8 +7,6 @@ namespace Trader;
 
 public class Listener
 {
-    public List<Order> Orders = new List<Order>();
-    
     private NatsClient nats = new NatsClient("localhost:4222");
     
     public void Listen()

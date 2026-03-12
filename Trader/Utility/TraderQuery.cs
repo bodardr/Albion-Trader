@@ -200,32 +200,63 @@ public class TraderQuery
         var itemNames = GetItemNames();
 
         locations ??= Array.ConvertAll(Enum.GetValues<MarketLocation>(), x => ((int)x).ToString());
-
-        var aggregation = db.FT().Aggregate("idx:prices",
+        
+        var pricesAggregation = db.FT().Aggregate("idx:prices",
             new AggregationRequest($"@ItemGroupTypeID:{{{string.Join(" | ", itemNames)}}}")
-            .GroupBy(["@LocationID", "@ItemGroupTypeID", "@UnitPriceSilver", "@Timestamp", "@EnchantmentLevel", "@VolumeSold"],
+                .GroupBy(["@LocationID", "@ItemGroupTypeID", "@UnitPriceSilver", "@Timestamp", "@EnchantmentLevel",
+                        "@VolumeSold"],
                     [Reducers.Max("@Timestamp").As("latest_time")]));
+        
+        var ordersAggregation = db.FT().Aggregate("idx:orders",
+            new AggregationRequest($"@ItemGroupTypeID:{{{string.Join(" | ", itemNames)}}} @LocationID:{{{string.Join(" | ", locations)}}}")
+                .GroupBy(["@LocationID", "@ItemGroupTypeID", "@UnitPriceSilver", "@EnchantmentLevel", "@QualityLevel"],
+                    [Reducers.Min("@UnitPriceSilver").As("min_price")])
+                .SortBy(new SortedField("@min_price")).Limit(100000));
+
 
         var items = new Dictionary<string, Dictionary<string, Price>>();
 
-        for (int i = 0; i < aggregation.TotalResults; i++)
+        for (int i = 0; i < pricesAggregation.TotalResults; i++)
         {
-            var item = aggregation.GetRow(i);
-            
+            var item = pricesAggregation.GetRow(i);
+
             var itemID = (string)item["ItemGroupTypeID"];
             var locationID = (string)item["LocationID"];
-            
+
             items.TryAdd(itemID, new());
-                items[itemID][locationID] = new Price()
-                {
-                    EnchantmentLevel = (int)item["EnchantmentLevel"],
-                    ItemTypeId = itemID,
-                    LocationId = locationID,
-                    QualityLevel = (int)item["QualityLevel"],
-                    Timestamp = long.Parse((string)item["Timestamp"]),
-                    UnitPriceSilver = (long)item["UnitPriceSilver"],
-                    VolumeSold = long.Parse(item["VolumeSold"])
-                };
+            items[itemID][locationID] = new Price()
+            {
+                EnchantmentLevel = (int)item["EnchantmentLevel"],
+                ItemTypeId = itemID,
+                LocationId = locationID,
+                QualityLevel = (int)item["QualityLevel"],
+                Timestamp = long.Parse((string)item["Timestamp"]),
+                UnitPriceSilver = (long)item["UnitPriceSilver"],
+                VolumeSold = long.Parse(item["VolumeSold"])
+            };
+        }
+
+        for (int i = 0; i < ordersAggregation.TotalResults; i++)
+        {
+            var row = ordersAggregation.GetRow(i);
+
+            var itemID = row["ItemGroupTypeID"];
+            var locationID = row["LocationID"];
+
+            var price = new Price()
+            {
+                LocationId = locationID,
+                ItemTypeId = itemID,
+                QualityLevel = int.Parse(row["QualityLevel"]),
+                EnchantmentLevel = int.Parse(row["EnchantmentLevel"]),
+                UnitPriceSilver = long.Parse(row["min_price"]),
+                //Since this is a singular price we can't assume a big volume
+                VolumeSold = -1
+            };
+
+            items.TryAdd(itemID, new());
+            if (!items[itemID].ContainsKey(locationID))
+                items[itemID].Add(locationID, price);
         }
 
         return items;

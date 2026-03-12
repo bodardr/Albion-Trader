@@ -2,8 +2,8 @@
 namespace Trader;
 
 public static class CraftingUtility
-{ 
-    public static async Task GetCraftingFlips()
+{
+    public static async Task GetCraftingFlips(MarketLocation location, long budget, float volumePercentage)
     {
         HashSet<string> itemsToFetch = new();
 
@@ -30,52 +30,93 @@ public static class CraftingUtility
                 }
         }
 
-        var query = new TraderQuery().OfItems(itemsToFetch.ToArray());
+        var locationCode = ((int)location).ToString();
 
+        var query = new TraderQuery().OfItems(itemsToFetch.ToArray()).OfLocations(locationCode);
         var prices = await query.GetPrices(Database.Instance.DB);
-        var craftInfos = new List<CraftingInfo>();
 
-        var locations = new[]
-        {
-            ((int)MarketLocation.Thetford).ToString(),
-            ((int)MarketLocation.Lymhurst).ToString(),
-            ((int)MarketLocation.Bridgewatch).ToString(),
-            ((int)MarketLocation.BlackMarket).ToString(),
-            ((int)MarketLocation.Caerleon).ToString(),
-            ((int)MarketLocation.Martlock).ToString(),
-            ((int)MarketLocation.FortSterling).ToString(),
-            ((int)MarketLocation.Brecilien).ToString(),
-        };
+        var craftInfos = new List<CraftingInfo>();
 
         foreach (var (item, craft) in crafts)
         {
-            long[,] craftingCosts = new long[locations.Length, craft.CraftResources.Length];
+            long[] craftingCosts = new long[craft.CraftResources.Length];
 
             for (int ingredientIndex = 0; ingredientIndex < craft.CraftResources.Length; ingredientIndex++)
             {
                 var ingredient = craft.CraftResources[ingredientIndex];
-                for (int i = 0; i < locations.Length; i++)
-                    if (prices.ContainsKey(ingredient.UniqueName) &&
-                        prices[ingredient.UniqueName].TryGetValue(locations[i], out var price))
-                        craftingCosts[i, ingredientIndex] = price.UnitPriceSilver * ingredient.Count;
+                if (prices.ContainsKey(ingredient.UniqueName) &&
+                    prices[ingredient.UniqueName].TryGetValue(locationCode, out var ingredientPrice))
+                    craftingCosts[ingredientIndex] = ingredientPrice.UnitPriceSilver * ingredient.Count;
             }
 
-            long[] itemPrices = new long[locations.Length];
-            long[] itemVolumes = new long[locations.Length];
+            if (!prices.ContainsKey(item.UniqueName) ||
+                !prices[item.UniqueName].TryGetValue(locationCode, out var itemPrice))
+                continue;
 
-            for (int i = 0; i < locations.Length; i++)
-            {
-                if (!prices.ContainsKey(item.UniqueName) ||
-                    !prices[item.UniqueName].TryGetValue(locations[i], out var price))
-                    continue;
+            long itemVolume = itemPrice.VolumeSold;
 
-                itemPrices[i] = price.UnitPriceSilver;
-                itemVolumes[i] = price.VolumeSold;
-            }
+            var craftInfo = new CraftingInfo(item, craft, craftingCosts, itemPrice.UnitPriceSilver, itemVolume);
 
-            craftInfos.Add(new CraftingInfo(item, craft, craftingCosts, itemPrices, itemVolumes));
+            var existingCraftIndex = craftInfos.FindIndex(x => x.Item.UniqueName.Equals(craftInfo.Item.UniqueName));
+            
+            //If there is an existing craft and it gives less profit, we replace it 
+            if (existingCraftIndex >= 0 && craftInfos[existingCraftIndex].UnitProfit < craftInfo.UnitProfit)
+                craftInfos[existingCraftIndex] = craftInfo;
+            else if (existingCraftIndex < 0)
+                craftInfos.Add(craftInfo);
         }
 
-        craftInfos.Sort((x, y) => y.UnitProfits.Max().CompareTo(x.UnitProfits.Max()));
+        //We remove all artifact rolls because they're random.
+        craftInfos.RemoveAll(x =>
+            x.Item.UniqueName.Contains("ARTIFACT") ||
+            x.Item.UniqueName.Contains("ARTEFACT") ||
+            x.Item.UniqueName.Contains("CAPEITEM"));
+
+        craftInfos.Sort((x, y) => y.ProfitMargin.CompareTo(x.ProfitMargin));
+
+        StringBuilder volumeInfoStr = new();
+        volumeInfoStr.AppendLine("Volume information is required on the following items : ");
+        for (int i = 0; i < 30; i++)
+        {
+            var craftInfo = craftInfos[i];
+
+            if (craftInfo.TradingVolume > 0)
+                continue;
+
+            volumeInfoStr.AppendLine(craftInfo.Item.DisplayName);
+        }
+
+        var volumeInformationRequired = volumeInfoStr.ToString();
+
+        var craftsToMakeList = new StringBuilder();
+        craftsToMakeList.AppendLine("Crafts To Make:");
+        Dictionary<string, long> requiredIngredients = new();
+        for (int i = 0; i < 30; i++)
+        {
+            var craftInfo = craftInfos[i];
+
+            if (craftInfo.TradingVolume <= 0)
+                continue;
+
+            var volume = (long)Math.Ceiling(craftInfo.TradingVolume * volumePercentage);
+
+            foreach (var resource in craftInfo.Recipe.CraftResources)
+            {
+                var itemName = ItemDictionary.IdToName[resource.UniqueName];
+                if (!requiredIngredients.TryGetValue(itemName, out var ingredientAmount))
+                    requiredIngredients.Add(itemName, resource.Count * volume);
+                else
+                    requiredIngredients[itemName] = ingredientAmount + resource.Count * volume;
+            }
+
+            craftsToMakeList.AppendLine($"- {volume}x {craftInfo.Item.DisplayName}");
+        }
+
+        var ingredientsRequired = new StringBuilder("Ingredients Required");
+
+        foreach (var (itemName, amount) in requiredIngredients)
+            ingredientsRequired.AppendLine($"- {amount}x {itemName}");
+
+        var ingredientsRequiredStr = ingredientsRequired.ToString() + craftsToMakeList.ToString();
     }
 }

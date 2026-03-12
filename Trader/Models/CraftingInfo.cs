@@ -5,55 +5,52 @@ public class CraftingInfo
     public Item Item { get; set; }
     public CraftingRequirement Recipe { get; set; }
 
-    public long[,] CraftingCosts { get; set; }
-    public long[] ItemPrices { get; set; }
+    public long[] CraftingCosts { get; set; }
+    public long ItemPrice { get; set; }
 
-    public long[] UnitProfits { get; set; }
-    public long[] TradingVolumes { get; set; }
-    
-    public long[] PotentialProfits { get; set; }
+    public long UnitProfit { get; set; }
+    public long TradingVolume { get; set; }
 
-    public CraftingInfo(Item item, CraftingRequirement recipe, long[,] craftingCosts, long[] itemPrices,
-        long[] tradingVolumes)
+    public long PotentialProfits { get; set; }
+
+    public float ProfitMargin => TotalCraftingCost <= 0 ? 0 : (float)ItemPrice / TotalCraftingCost;
+    public long TotalCraftingCost { get; set; }
+
+    public CraftingInfo(Item item, CraftingRequirement recipe, long[] craftingCosts, long itemPrice,
+        long tradingVolume)
     {
         Item = item;
         Recipe = recipe;
         CraftingCosts = craftingCosts;
-        
-        ItemPrices = itemPrices;
-        TradingVolumes = tradingVolumes;
 
-        UnitProfits = new long[ItemPrices.Length];
+        ItemPrice = itemPrice / 10000;
+        TradingVolume = tradingVolume;
 
-        var ingredientCount = craftingCosts.GetLength(1);
-        for (int i = 0; i < ItemPrices.Length; i++)
+        var ingredientCount = craftingCosts.Length;
+        var craftValid = true;
+        for (int j = 0; j < ingredientCount; j++)
         {
-            long totalCraftingCost = recipe.Silver;
-            var craftValid = true;
-            for (int j = 0; j < ingredientCount; j++)
+            var ingredientCost = craftingCosts[j];
+            if (ingredientCost <= 0)
             {
-                var ingredientCost = craftingCosts[i, j];
-                if (ingredientCost <= 0)
-                {
-                    craftValid = false;
-                    break;
-                }
-                totalCraftingCost += ingredientCost;
+                craftValid = false;
+                break;
             }
-
-            if (!craftValid)
-            {
-                UnitProfits[i] = 0;
-                continue;
-            }
-            
-            //Sale Price = Sell Order price - Sales tax (2.5%) - Non-Premium Sell Order Tax (8%)
-            //Material Costs = Material costs + Sales tax (2.5%)
-            UnitProfits[i] = (long)(ItemPrices[i] * (1f - 0.025f - 0.08f) - totalCraftingCost * 1.025f);
+            TotalCraftingCost += ingredientCost;
         }
-        
-        PotentialProfits = new long[ItemPrices.Length];
-        for (int i = 0; i < ItemPrices.Length; i++)
-            PotentialProfits[i] = UnitProfits[i] * TradingVolumes[i];
+        TotalCraftingCost /= 10000;
+        TotalCraftingCost += recipe.Silver;
+
+        if (!craftValid)
+        {
+            TotalCraftingCost = 0;
+            UnitProfit = 0;
+            return;
+        }
+
+        //Sale Price = Sell Order price - Sales tax (2.5%) - Non-Premium Sell Order Tax (8%)
+        //Material Costs = Material costs + Sales tax (2.5%)
+        UnitProfit = (long)(ItemPrice * (1f - 0.025f - 0.08f) - TotalCraftingCost * 1.025f);
+        PotentialProfits = UnitProfit * Math.Max(1, TradingVolume);
     }
 }

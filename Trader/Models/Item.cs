@@ -7,7 +7,16 @@ public class Item
 {
     [JsonProperty("@uniquename")]
     public string UniqueName { get; set; }
+    
+    [JsonProperty("@shopsubcategory1")]
+    public string ShopSubCategory1 { get; set; }
 
+    [JsonProperty("@shopsubcategory2")]
+    public string ShopSubCategory2 { get; set; }
+    
+    [JsonProperty("@shopsubcategory3")]
+    public string ShopSubCategory3 { get; set; }
+    
     [JsonProperty("@tier")]
     public int Tier { get; set; }
 
@@ -27,6 +36,8 @@ public class Item
     public CraftingRequirement[] CraftingRecipes { get; set; }
 
     public CraftingRequirement MainRequirement => CraftingRecipes != null ? CraftingRecipes[0] : null;
+
+    public string DisplayName => ItemDictionary.IdToName.GetValueOrDefault(UniqueName) ?? UniqueName;
 }
 [Serializable]
 public class CraftingRequirement

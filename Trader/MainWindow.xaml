@@ -14,12 +14,22 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"></ColumnDefinition>
+            <ColumnDefinition Width="Auto"></ColumnDefinition>
+            <ColumnDefinition Width="Auto"></ColumnDefinition>
+            <ColumnDefinition Width="Auto"></ColumnDefinition>
+        </Grid.ColumnDefinitions>
 
         <Button Grid.Row="0" Content="Find Flips" Click="OnFlipButtonClick" Padding="4" Margin="0 4"></Button>
-        <Button Grid.Row="1" Content="Find Crafting Flips" Click="OnCraftingFlipButtonClick" Padding="4" Margin="0 4"></Button>
+       
+        <Button Grid.Row="1" Content="Find Crafting Flips" Click="OnCraftingFlipButtonClick" Padding="4" Margin="0 4"/>
+        <ComboBox Name="craftingFlipsComboBox" Grid.Row="1" Grid.Column="1"/>
+        <TextBox Name="budgetTextBox" Text="1000000" Grid.Row="1" Grid.Column="2"/>
+        <TextBox Name="dailyVolumePercentage" Text="65" Grid.Row="1" Grid.Column="3"/>
+        
         <Button Grid.Row="2" Content="Find Traveling Flips" Click="OnTravelingFlipButtonClick" Padding="4" Margin="0 4"></Button>
         <TextBlock Grid.Row="3" Text="Flips" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" Margin="8"></TextBlock>
-
         <ListView Grid.Row="4" ItemsSource="{Binding (local:MainWindow.Flips)}">
             <ListView.View>
                 <GridView AllowsColumnReorder="true" ColumnHeaderToolTip="Flips">
