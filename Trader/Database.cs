@@ -30,7 +30,7 @@ public class Database
     private IDatabase db;
     private IJsonCommands json;
 
-    public List<Flip> Flips { get; private set; } = new();
+    public ObservableCollection<Flip> Flips { get; private set; } = new();
 
     public IDatabase DB => db;
     
@@ -203,8 +203,6 @@ public class Database
                     Flips.Add(new Flip(buyOrder, sellOrder, Math.Max(1,materialCost), enchantItemCount));
             }
         }
-
-        Flips.Sort((x, y) => y.Profit.CompareTo(x.Profit));
     }
 
     public async Task AddPricesFromAPI(string priceHistoryJSON)

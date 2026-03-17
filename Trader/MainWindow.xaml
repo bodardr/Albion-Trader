@@ -5,54 +5,43 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Trader"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid ShowGridLines="True" Margin="8">
+        Title="Albion Market Trader" Height="600" Width="900"
+        WindowStartupLocation="CenterScreen">
+    
+    <Grid Margin="12">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto"></ColumnDefinition>
-            <ColumnDefinition Width="Auto"></ColumnDefinition>
-            <ColumnDefinition Width="Auto"></ColumnDefinition>
-            <ColumnDefinition Width="Auto"></ColumnDefinition>
-        </Grid.ColumnDefinitions>
+            <RowDefinition Height="Auto"/> <RowDefinition Height="Auto"/> <RowDefinition Height="*"/>    </Grid.RowDefinitions>
 
-        <Button Grid.Row="0" Content="Find Flips" Click="OnFlipButtonClick" Padding="4" Margin="0 4"></Button>
-       
-        <Button Grid.Row="1" Content="Find Crafting Flips" Click="OnCraftingFlipButtonClick" Padding="4" Margin="0 4"/>
-        <ComboBox Name="craftingFlipsComboBox" Grid.Row="1" Grid.Column="1"/>
-        <TextBox Name="budgetTextBox" Text="1000000" Grid.Row="1" Grid.Column="2"/>
-        <TextBox Name="dailyVolumePercentage" Text="65" Grid.Row="1" Grid.Column="3"/>
-        
-        <Button Grid.Row="2" Content="Find Traveling Flips" Click="OnTravelingFlipButtonClick" Padding="4" Margin="0 4"></Button>
-        <TextBlock Grid.Row="3" Text="Flips" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" Margin="8"></TextBlock>
-        <ListView Grid.Row="4" ItemsSource="{Binding (local:MainWindow.Flips)}">
-            <ListView.View>
-                <GridView AllowsColumnReorder="true" ColumnHeaderToolTip="Flips">
-                    <GridViewColumn Header="Item Name" Width="100" DisplayMemberBinding="{Binding Path=SellOrder.Name}"/>
-                    <GridViewColumn Header="Budget" Width="100" DisplayMemberBinding="{Binding Path=Budget}"/>
-                    <GridViewColumn Header="Buy From" Width="100" DisplayMemberBinding="{Binding Path=BuyOrder.Name}"/>
-                    <GridViewColumn Header="Upgrade Info" Width="100" DisplayMemberBinding="{Binding Path=UpgradeInfo}"/>
-                    <GridViewColumn Header="Sell To" Width="100" DisplayMemberBinding="{Binding Path=SellOrder.LocationName}"/>
-                    
-                    <GridViewColumn Width="100">
-                        <GridViewColumnHeader>Profit
-                            <GridViewColumnHeader.ContextMenu>
-                                <ContextMenu Name="LastNameCM">
-                                    <MenuItem Header="Ascending" />
-                                    <MenuItem Header="Descending" />
-                                </ContextMenu>
-                            </GridViewColumnHeader.ContextMenu>
-                        </GridViewColumnHeader>
-                    </GridViewColumn>
-                </GridView>
+        <StackPanel Grid.Row="0" Orientation="Vertical" Margin="0,0,0,15">
+            
+            <Button Content="Find Flips" Click="OnFlipButtonClick" Padding="10,5" HorizontalAlignment="Left" Margin="0,0,0,10"/>
+            
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <Button Content="Find Crafting Flips" Click="OnCraftingFlipButtonClick" Padding="10,5" Margin="0,0,10,0"/>
+                <ComboBox Name="craftingFlipsComboBox" Width="150" Margin="0,0,10,0" VerticalContentAlignment="Center"/>
+                
+                <TextBlock Text="Budget:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                <TextBox Name="budgetTextBox" Text="1000000" Width="100" Margin="0,0,15,0" VerticalContentAlignment="Center"/>
+                
+                <TextBlock Text="Volume %:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                <TextBox Name="dailyVolumePercentage" Text="65" Width="50" VerticalContentAlignment="Center"/>
+            </StackPanel>
 
-            </ListView.View>
-        </ListView>
+            <Button Content="Find Traveling Flips" Click="OnTravelingFlipButtonClick" Padding="10,5" HorizontalAlignment="Left"/>
+        </StackPanel>
 
+        <TextBlock Grid.Row="1" Text="Available Flips" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,5"/>
+
+        <DataGrid Grid.Row="2" 
+                  ItemsSource="{Binding Flips}"
+                  AutoGenerateColumns="True"
+                  CanUserSortColumns="True"
+                  IsReadOnly="True"
+                  AlternatingRowBackground="#FFF0F0F0"
+                  EnableRowVirtualization="True"
+                  EnableColumnVirtualization="True"
+                  VirtualizingStackPanel.IsVirtualizing="True"
+                  VirtualizingStackPanel.VirtualizationMode="Recycling">
+        </DataGrid>
     </Grid>
 </Window>

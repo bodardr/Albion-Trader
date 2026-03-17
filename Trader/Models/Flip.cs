@@ -8,13 +8,16 @@ public struct Flip
     public Order SellOrder { get; private set; }
     public Order BuyOrder { get; private set; }
 
+    public int Amount => BuyOrder.Amount;
+    
     public long Profit { get; private set; }
+    public long Budget => (long)((SellOrder.UnitPriceSilver + TotalUpgradeCost) * 1.08f);
+    
     public long TotalUpgradeCost { get; private set; }
 
     public bool IsUpgrade => TotalUpgradeCost > 0;
 
     public int UpgradeItemCount { get; private set; } = 0;
-    public long Budget => (long)((SellOrder.UnitPriceSilver + TotalUpgradeCost) * 1.08f);
 
     public string UpgradeInfo => IsUpgrade
         ? $"x{UpgradeItemCount} {SellOrder.ItemTypeId[..2]}.{SellOrder.EnchantmentLevel} to {SellOrder.ItemTypeId[..2]}.{BuyOrder.EnchantmentLevel}\nCost: {TotalUpgradeCost}"

@@ -13,13 +13,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private Database db = new();
     private Listener listener;
 
-    public List<Flip> Flips => db.Flips;
+    public ObservableCollection<Flip> Flips => db.Flips;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public MainWindow()
     {
         InitializeComponent();
+
+        DataContext = this;
 
         ItemDictionary.Initialize();
 

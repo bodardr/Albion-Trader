@@ -20,6 +20,16 @@ public class Order
     public string AuctionType { get; set; }
 
     public DateTime Expires { get; set; }
+    
+    // Maps 1-5 to Albion Quality Strings
+    public string QualityName => QualityLevel switch
+    {
+        2 => "Good",
+        3 => "Outstanding",
+        4 => "Excellent",
+        5 => "Masterpiece",
+        1 or _ => "Normal",
+    };
 
     public Order()
     {
@@ -34,5 +44,10 @@ public class Order
         QualityLevel = qualityLevel;
         EnchantmentLevel = enchantmentLevel;
         UnitPriceSilver = unitPriceSilver;
+    }
+    
+    public override string ToString()
+    {
+        return $"{ItemDictionary.IdToName[ItemGroupTypeId]} ({QualityName}) @ {UnitPriceSilver:N0}";
     }
 }
