@@ -1,8 +1,22 @@
 ﻿namespace Trader;
 
+public class SalvageInfo : CraftingInfo
+{
+    public long UnitSalvageProfit { get; set; }
+    
+    public SalvageInfo(Item item, int enchantmentLevel, CraftingRequirement recipe, long[] craftingCosts, long itemPrice,
+        long tradingVolume) : base(item, enchantmentLevel, recipe, craftingCosts, itemPrice, tradingVolume)
+    {
+        //Sale Price = Sell Order price - Sales tax (2.5%) - Non-Premium Sell Order Tax (8%)
+        //Material Costs = Item Price + Sales tax (2.5%)
+        UnitSalvageProfit = (long)(TotalCraftingCost * 0.2f * (1f - 0.025f - 0.08f) - ItemPrice * (1f + 0.025f));
+    }
+}
 public class CraftingInfo
 {
     public Item Item { get; set; }
+    public int EnchantmentLevel { get; set; }
+    
     public CraftingRequirement Recipe { get; set; }
 
     public long[] CraftingCosts { get; set; }
@@ -13,13 +27,14 @@ public class CraftingInfo
 
     public long PotentialProfits { get; set; }
 
-    public float ProfitMargin => TotalCraftingCost <= 0 ? 0 : (float)ItemPrice / TotalCraftingCost;
+    public float ProfitMargin => TotalCraftingCost <= 0 ? 0 : (float)(ItemPrice - TotalCraftingCost) / TotalCraftingCost;
     public long TotalCraftingCost { get; set; }
 
-    public CraftingInfo(Item item, CraftingRequirement recipe, long[] craftingCosts, long itemPrice,
+    public CraftingInfo(Item item, int enchantmentLevel, CraftingRequirement recipe, long[] craftingCosts, long itemPrice,
         long tradingVolume)
     {
         Item = item;
+        EnchantmentLevel = enchantmentLevel;
         Recipe = recipe;
         CraftingCosts = craftingCosts;
 

@@ -1024,7 +1024,7 @@ PSG-H-0001: PSG-H-0001
 PSG-H-0001#1: Boulder Deep                                                     
 PSG-H-0002: PSG-H-0002                                                       
 PSG-H-0002#1: Drystone Channel                                                 
-PSG-0001: PSG-0001                                                         
+PSG-0001: Chasmlight Cave                                                  
 PSG-0002: PSG-0002                                                         
 HELLGATE-01-10v10-01-HRD: The Plains                                                       
 HELLGATE-01-2v2-01-HRD: The Plains                                                       
@@ -1408,3 +1408,12 @@ ISLAND-PLAYER-SWAMP-0001e-SHOWROOM: Showroom Island
 3003-HellDen: Antiquarian's Den                                                
 3004-HellDen: Antiquarian's Den                                                
 4000-HellDen: Antiquarian's Den                                                
+DebugCreatureArena: DebugCreatureArena                                               
+1900-DynamicTest: 1900-DynamicTest                                                 
+0367-HALL-08: Conquerors' Hall Lvl. 8                                          
+1020-HALL-08: Conquerors' Hall Lvl. 8                                          
+2017-HALL-08: Conquerors' Hall Lvl. 8                                          
+3021-HALL-08: Conquerors' Hall Lvl. 8                                          
+4014-HALL-08: Conquerors' Hall Lvl. 8                                          
+AVALON-LIONEL-01: AVALON-LIONEL-01                                                 
+AVALON-LIONEL-02: AVALON-LIONEL-02                                                 

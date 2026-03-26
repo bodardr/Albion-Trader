@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Text;
+using System.Text.Json.Serialization;
 using Newtonsoft.Json;
 namespace Trader;
 
@@ -7,16 +8,16 @@ public class Item
 {
     [JsonProperty("@uniquename")]
     public string UniqueName { get; set; }
-    
+
     [JsonProperty("@shopsubcategory1")]
     public string ShopSubCategory1 { get; set; }
 
     [JsonProperty("@shopsubcategory2")]
     public string ShopSubCategory2 { get; set; }
-    
+
     [JsonProperty("@shopsubcategory3")]
     public string ShopSubCategory3 { get; set; }
-    
+
     [JsonProperty("@tier")]
     public int Tier { get; set; }
 
@@ -32,12 +33,20 @@ public class Item
     [JsonProperty("@famevalue")]
     public double FameValue { get; set; }
 
+    [JsonProperty("@salvageable")]
+    public bool Salvageable { get; set; }
+
     [JsonProperty("craftingrequirements")]
     public CraftingRequirement[] CraftingRecipes { get; set; }
 
     public CraftingRequirement MainRequirement => CraftingRecipes != null ? CraftingRecipes[0] : null;
 
     public string DisplayName => ItemDictionary.IdToName.GetValueOrDefault(UniqueName) ?? UniqueName;
+
+    public override string ToString()
+    {
+        return DisplayName;
+    }
 }
 [Serializable]
 public class CraftingRequirement
@@ -53,9 +62,21 @@ public class CraftingRequirement
 
     [JsonProperty("@amountcrafted")]
     public int AmountCrafted { get; set; } = 1;
-    
+
     [JsonProperty("craftresource")]
     public CraftResource[] CraftResources { get; set; }
+
+    public override string ToString()
+    {
+        var str = new StringBuilder();
+
+        foreach (var resource in CraftResources)
+        {
+            str.AppendLine(
+                $"{resource.Count}x {ItemDictionary.IdToName.GetValueOrDefault(resource.UniqueName)} {(resource.EnchantmentLevel > 0 ? $"@{resource.EnchantmentLevel}" : "")}");
+        }
+        return str.ToString();
+    }
 }
 [Serializable]
 public class CraftResource

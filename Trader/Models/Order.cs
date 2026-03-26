@@ -10,7 +10,7 @@ public class Order
 
     public string ItemTypeId { get; set; }
     public string LocationId { get; set; }
-    public string LocationName => ItemDictionary.LocationIDToName.GetValueOrDefault(LocationId) ?? string.Empty;
+    public string LocationName => ItemDictionary.LocationIdToName.GetValueOrDefault(LocationId) ?? string.Empty;
     public int QualityLevel { get; set; }
     public int EnchantmentLevel { get; set; }
 
@@ -36,10 +36,10 @@ public class Order
         
     }
     
-    public Order(string LocationID, string itemGroupTypeID, int qualityLevel, int enchantmentLevel, long unitPriceSilver)
+    public Order(string LocationId, string itemGroupTypeId, int qualityLevel, int enchantmentLevel, long unitPriceSilver)
     {
-        LocationId = LocationID;
-        ItemGroupTypeId = itemGroupTypeID;
+        LocationId = LocationId;
+        ItemGroupTypeId = itemGroupTypeId;
         ItemTypeId = ItemGroupTypeId + (EnchantmentLevel > 0 ? $"@{EnchantmentLevel}" :  string.Empty);
         QualityLevel = qualityLevel;
         EnchantmentLevel = enchantmentLevel;

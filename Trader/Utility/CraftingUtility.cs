@@ -1,17 +1,23 @@
-﻿using System.Text;
-namespace Trader;
+﻿namespace Trader;
 
 public static class CraftingUtility
 {
-    public static async Task GetCraftingFlips(MarketLocation location, long budget, float volumePercentage)
+    private static Dictionary<Item, List<CraftingRequirement>> GetValidCrafts(out HashSet<string> itemsToFetch)
     {
-        HashSet<string> itemsToFetch = new();
-
-        var crafts = new List<(Item, CraftingRequirement)>();
+        var crafts = new Dictionary<Item, List<CraftingRequirement>>();
+        var iToFetch = new HashSet<string>();
 
         foreach (var item in ItemDictionary.Items.Values)
         {
-            itemsToFetch.Add(item.UniqueName);
+            AddCraft(item);
+        }
+
+        itemsToFetch = iToFetch;
+        return crafts;
+
+        void AddCraft(Item item)
+        {
+            iToFetch.Add(item.UniqueName);
             if (item.CraftingRecipes != null)
                 foreach (var recipe in item.CraftingRecipes)
                 {
@@ -20,103 +26,201 @@ public static class CraftingUtility
                     foreach (var craftResource in recipe.CraftResources)
                     {
                         if (craftResource != null && !string.IsNullOrEmpty(craftResource.UniqueName))
-                            itemsToFetch.Add(craftResource.UniqueName);
+                            iToFetch.Add(craftResource.UniqueName);
                         else
                             craftValid = false;
                     }
 
-                    if (craftValid)
-                        crafts.Add(new(item, recipe));
+                    if (!craftValid)
+                        continue;
+
+                    if (!crafts.ContainsKey(item))
+                        crafts.Add(item, [recipe]);
+                    else
+                        crafts[item].Add(recipe);
                 }
         }
+    }
 
-        var locationCode = ((int)location).ToString();
+    public static async Task<List<CraftingInfo>> GetCraftingFlips(MarketLocation origin, MarketLocation sellLocation,
+        long budget,
+        float volumePercentage)
+    {
+        var crafts = GetValidCrafts(out var itemsToFetch);
 
-        var query = new TraderQuery().OfItems(itemsToFetch.ToArray()).OfLocations(locationCode);
+        var originCode = ((int)origin).ToString("D4");
+        var sellLocationCode = ((int)sellLocation).ToString("D4");
+
+        var query = new TraderQuery().OfItems(itemsToFetch.ToArray()).OfLocations(originCode, sellLocationCode).OfQualities(1..3);
         var prices = await query.GetPrices(Database.Instance.DB);
 
         var craftInfos = new List<CraftingInfo>();
 
-        foreach (var (item, craft) in crafts)
+        foreach (var (itemId, pricesPerLocation) in prices)
         {
-            long[] craftingCosts = new long[craft.CraftResources.Length];
+            var id = itemId;
+            if (id[^2] == '@')
+                id = id[..^2];
+            
+            var item = ItemDictionary.Items.GetValueOrDefault(id);
 
-            for (int ingredientIndex = 0; ingredientIndex < craft.CraftResources.Length; ingredientIndex++)
-            {
-                var ingredient = craft.CraftResources[ingredientIndex];
-                if (prices.ContainsKey(ingredient.UniqueName) &&
-                    prices[ingredient.UniqueName].TryGetValue(locationCode, out var ingredientPrice))
-                    craftingCosts[ingredientIndex] = ingredientPrice.UnitPriceSilver * ingredient.Count;
-            }
-
-            if (!prices.ContainsKey(item.UniqueName) ||
-                !prices[item.UniqueName].TryGetValue(locationCode, out var itemPrice))
+            if (item == null)
                 continue;
 
-            long itemVolume = itemPrice.VolumeSold;
+            if (!crafts.TryGetValue(item, out var craftsForItem))
+                continue;
 
-            var craftInfo = new CraftingInfo(item, craft, craftingCosts, itemPrice.UnitPriceSilver, itemVolume);
+            if (item.UniqueName.Contains("ARTIFACT") ||
+                item.UniqueName.Contains("ARTEFACT") ||
+                item.UniqueName.Contains("CAPEITEM"))
+                continue;
 
-            var existingCraftIndex = craftInfos.FindIndex(x => x.Item.UniqueName.Equals(craftInfo.Item.UniqueName));
-            
-            //If there is an existing craft and it gives less profit, we replace it 
-            if (existingCraftIndex >= 0 && craftInfos[existingCraftIndex].UnitProfit < craftInfo.UnitProfit)
-                craftInfos[existingCraftIndex] = craftInfo;
-            else if (existingCraftIndex < 0)
-                craftInfos.Add(craftInfo);
+            if (!pricesPerLocation.TryGetValue(sellLocationCode, out var itemPrice))
+                continue;
+
+            var enchantmentLevel = itemPrice.EnchantmentLevel;
+            foreach (var craft in craftsForItem)
+            {
+                var craftValid = true;
+                long[] craftingCosts = new long[craft.CraftResources.Length];
+
+                for (int ingredientIndex = 0; ingredientIndex < craft.CraftResources.Length; ingredientIndex++)
+                {
+                    var ingredient = craft.CraftResources[ingredientIndex];
+
+                    var ingredientId = ingredient.UniqueName;
+                    if (enchantmentLevel > 0)
+                    {
+                        if (ItemDictionary.IdToName.ContainsKey($"{ingredientId}@{enchantmentLevel}"))
+                            ingredientId = $"{ingredientId}@{enchantmentLevel}";
+                        else if(ItemDictionary.IdToName.ContainsKey($"{ingredientId}_LEVEL{enchantmentLevel}@{enchantmentLevel}"))
+                            ingredientId = $"{ingredientId}_LEVEL{enchantmentLevel}@{enchantmentLevel}";
+                    }
+
+                    if (prices.TryGetValue(ingredientId, out var ingredientPricesPerLocation) &&
+                        ingredientPricesPerLocation.TryGetValue(originCode, out var ingredientPrice))
+                    {
+                        craftingCosts[ingredientIndex] = ingredientPrice.UnitPriceSilver * ingredient.Count;
+                    }
+                    else
+                    {
+                        craftValid = false;
+                        break;
+                    }
+                }
+
+                if (!craftValid)
+                    continue;
+
+                long itemVolume = itemPrice.VolumeSold;
+
+                var craftInfo = new CraftingInfo(item, enchantmentLevel, craft, craftingCosts,
+                    itemPrice.UnitPriceSilver, itemVolume);
+
+                var existingCraftIndex =
+                    craftInfos.FindIndex(x =>
+                        x.Item.UniqueName.Equals(craftInfo.Item.UniqueName) &&
+                        x.EnchantmentLevel == craftInfo.EnchantmentLevel);
+
+                //If there is an existing craft that gives more profit, we replace it 
+                if (existingCraftIndex >= 0 && craftInfos[existingCraftIndex].UnitProfit < craftInfo.UnitProfit)
+                    craftInfos[existingCraftIndex] = craftInfo;
+                else if (existingCraftIndex < 0)
+                    craftInfos.Add(craftInfo);
+            }
         }
-
-        //We remove all artifact rolls because they're random.
-        craftInfos.RemoveAll(x =>
-            x.Item.UniqueName.Contains("ARTIFACT") ||
-            x.Item.UniqueName.Contains("ARTEFACT") ||
-            x.Item.UniqueName.Contains("CAPEITEM"));
 
         craftInfos.Sort((x, y) => y.ProfitMargin.CompareTo(x.ProfitMargin));
+        return craftInfos;
+    }
 
-        StringBuilder volumeInfoStr = new();
-        volumeInfoStr.AppendLine("Volume information is required on the following items : ");
-        for (int i = 0; i < 30; i++)
+    public static async Task<List<SalvageInfo>> GetSalvageFlips(MarketLocation location)
+    {
+        var crafts = GetValidCrafts(out var itemsToFetch);
+        var locationCode = ((int)location).ToString("D4");
+
+        var query = new TraderQuery().OfItems(itemsToFetch.ToArray()).OfLocations(locationCode).OfQualities(1..3);
+        var prices = await query.GetPrices(Database.Instance.DB);
+
+        var salvageInfos = new List<SalvageInfo>();
+        foreach (var (itemId, pricesPerLocation) in prices)
         {
-            var craftInfo = craftInfos[i];
+            var id = itemId;
+            if (id[^2] == '@')
+                id = id[..^2];
+            
+            var item = ItemDictionary.Items.GetValueOrDefault(id);
 
-            if (craftInfo.TradingVolume > 0)
+            if (!item.Salvageable)
+                continue;
+            
+            if (item == null)
                 continue;
 
-            volumeInfoStr.AppendLine(craftInfo.Item.DisplayName);
-        }
-
-        var volumeInformationRequired = volumeInfoStr.ToString();
-
-        var craftsToMakeList = new StringBuilder();
-        craftsToMakeList.AppendLine("Crafts To Make:");
-        Dictionary<string, long> requiredIngredients = new();
-        for (int i = 0; i < 30; i++)
-        {
-            var craftInfo = craftInfos[i];
-
-            if (craftInfo.TradingVolume <= 0)
+            if (!crafts.TryGetValue(item, out var craftsForItem))
                 continue;
 
-            var volume = (long)Math.Ceiling(craftInfo.TradingVolume * volumePercentage);
+            if (item.UniqueName.Contains("ARTIFACT") ||
+                item.UniqueName.Contains("ARTEFACT") ||
+                item.UniqueName.Contains("CAPEITEM"))
+                continue;
 
-            foreach (var resource in craftInfo.Recipe.CraftResources)
+            if (!pricesPerLocation.TryGetValue(locationCode, out var itemPrice))
+                continue;
+
+            var enchantmentLevel = itemPrice.EnchantmentLevel;
+            foreach (var craft in craftsForItem)
             {
-                var itemName = ItemDictionary.IdToName[resource.UniqueName];
-                if (!requiredIngredients.TryGetValue(itemName, out var ingredientAmount))
-                    requiredIngredients.Add(itemName, resource.Count * volume);
-                else
-                    requiredIngredients[itemName] = ingredientAmount + resource.Count * volume;
-            }
+                var craftValid = true;
+                long[] craftingCosts = new long[craft.CraftResources.Length];
 
-            craftsToMakeList.AppendLine($"- {volume}x {craftInfo.Item.DisplayName}");
+                for (int ingredientIndex = 0; ingredientIndex < craft.CraftResources.Length; ingredientIndex++)
+                {
+                    var ingredient = craft.CraftResources[ingredientIndex];
+
+                    var ingredientId = ingredient.UniqueName;
+                    if (enchantmentLevel > 0)
+                    {
+                        if (ItemDictionary.IdToName.ContainsKey($"{ingredientId}@{enchantmentLevel}"))
+                            ingredientId = $"{ingredientId}@{enchantmentLevel}";
+                        else if(ItemDictionary.IdToName.ContainsKey($"{ingredientId}_LEVEL{enchantmentLevel}@{enchantmentLevel}"))
+                            ingredientId = $"{ingredientId}_LEVEL{enchantmentLevel}@{enchantmentLevel}";
+                    }
+
+                    if (prices.TryGetValue(ingredientId, out var ingredientPricesPerLocation) &&
+                        ingredientPricesPerLocation.TryGetValue(locationCode, out var ingredientPrice))
+                    {
+                        craftingCosts[ingredientIndex] = ingredientPrice.UnitPriceSilver * ingredient.Count;
+                    }
+                    else
+                    {
+                        craftValid = false;
+                        break;
+                    }
+                }
+
+                if (!craftValid)
+                    continue;
+
+                long itemVolume = itemPrice.VolumeSold;
+                var craftInfo = new SalvageInfo(item, enchantmentLevel, craft, craftingCosts, itemPrice.UnitPriceSilver,
+                    itemVolume);
+
+                var existingCraftIndex =
+                    salvageInfos.FindIndex(x =>
+                        x.Item.UniqueName.Equals(craftInfo.Item.UniqueName) &&
+                        x.EnchantmentLevel == craftInfo.EnchantmentLevel);
+
+                //If there is an existing craft that gives more profit, we replace it 
+                if (existingCraftIndex >= 0 &&
+                    salvageInfos[existingCraftIndex].UnitSalvageProfit < craftInfo.UnitSalvageProfit)
+                    salvageInfos[existingCraftIndex] = craftInfo;
+                else if (existingCraftIndex < 0)
+                    salvageInfos.Add(craftInfo);
+            }
         }
 
-        var ingredientsRequired = new StringBuilder("Ingredients Required");
-
-        foreach (var (itemName, amount) in requiredIngredients)
-            ingredientsRequired.AppendLine($"- {amount}x {itemName}");
-
-        var ingredientsRequiredStr = ingredientsRequired.ToString() + craftsToMakeList.ToString();
+        salvageInfos.Sort((x, y) => x.UnitSalvageProfit.CompareTo(y.UnitSalvageProfit));
+        return salvageInfos;
     }
 }

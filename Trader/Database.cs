@@ -67,9 +67,9 @@ public class Database
         }
 
         var ordersSchema = new Schema()
-            .AddNumericField(new FieldName("$.Id", "ID"))
-            .AddTagField(new FieldName("$.ItemGroupTypeId", "ItemGroupTypeID"))
-            .AddTagField(new FieldName("$.LocationId", "LocationID"))
+            .AddNumericField(new FieldName("$.Id", "Id"))
+            .AddTagField(new FieldName("$.ItemTypeId", "ItemTypeId"))
+            .AddTagField(new FieldName("$.LocationId", "LocationId"))
             .AddNumericField(new FieldName("$.UnitPriceSilver", "UnitPriceSilver"))
             .AddNumericField(new FieldName("$.QualityLevel", "QualityLevel"))
             .AddNumericField(new FieldName("$.EnchantmentLevel", "EnchantmentLevel"));
@@ -78,8 +78,8 @@ public class Database
             ordersSchema);
 
         var pricesSchema = new Schema()
-            .AddTagField(new FieldName("$.ItemGroupTypeId", "ItemGroupTypeID"))
-            .AddTagField(new FieldName("$.LocationId", "LocationID"))
+            .AddTagField(new FieldName("$.ItemTypeId", "ItemTypeId"))
+            .AddTagField(new FieldName("$.LocationId", "LocationId"))
             .AddNumericField(new FieldName("$.UnitPriceSilver", "UnitPriceSilver"))
             .AddNumericField(new FieldName("$.QualityLevel", "QualityLevel"))
             .AddNumericField(new FieldName("$.EnchantmentLevel", "EnchantmentLevel"))
@@ -112,7 +112,7 @@ public class Database
 
             child["LocationId"] = location;
 
-            var key = $"orders:{location}:{child["ItemGroupTypeId"].Value<string>()}:{child["Id"].Value<string>()}";
+            var key = $"orders:{location}:{child["ItemTypeId"].Value<string>()}:{child["Id"].Value<string>()}";
             tasks.Add(pipeline.Json.SetAsync(key, "$", child.ToString(Formatting.None)));
 
             tasks.Add(pipeline.Db.KeyExpireAsync(key,
@@ -132,7 +132,7 @@ public class Database
         await UpgradeUtility.UpdateEnchantPrices();
 
         var buyOrdersAggregation = db.FT().Aggregate("idx:orders",
-            new AggregationRequest($"@LocationID:{{{(int)to}}}").Load(
+            new AggregationRequest($"@LocationId:{{{(int)to}}}").Load(
                 new("$.ItemTypeId"),
                 new("$.ItemGroupTypeId"),
                 new("$.LocationId"),
@@ -142,8 +142,8 @@ public class Database
                 new("$.Amount")));
 
         var sellOrdersAggregation = db.FT().Aggregate("idx:orders",
-            new AggregationRequest($"@LocationID:{{{(int)from}}}")
-                .GroupBy(["@ItemGroupTypeID", "@QualityLevel", "@EnchantmentLevel"],
+            new AggregationRequest($"@LocationId:{{{(int)from}}}")
+                .GroupBy(["@ItemTypeId", "@QualityLevel", "@EnchantmentLevel"],
                     [Reducers.Min("@UnitPriceSilver").As("min_price")])
                 .SortBy(new SortedField("@min_price")).Limit(100000));
 
@@ -151,7 +151,7 @@ public class Database
         for (int i = 0; i < sellOrdersAggregation.TotalResults; i++)
         {
             var row = sellOrdersAggregation.GetRow(i);
-            var order = new Order(((int)from).ToString(), (string)row["ItemGroupTypeID"],
+            var order = new Order(((int)from).ToString(), (string)row["ItemTypeId"],
                 int.Parse(row["QualityLevel"]),
                 int.Parse(row["EnchantmentLevel"]),
                 long.Parse(row["min_price"]));
@@ -217,7 +217,7 @@ public class Database
                 continue;
 
             var location = Enum.Parse<MarketLocation>(itemPrice["location"].ToString().Replace(" ", string.Empty));
-            var itemTypeID = itemPrice["item_id"].ToObject<string>();
+            var itemTypeId = itemPrice["item_id"].ToObject<string>();
             var quality = itemPrice["quality"].ToObject<long>();
 
             var priceHistory = itemPrice["data"].Children();
@@ -225,20 +225,20 @@ public class Database
             {
                 var timestamp = DateTime.Parse(priceHistoryItem["timestamp"].ToString());
 
-                var indexOfAt = itemTypeID.LastIndexOf('@');
+                var indexOfAt = itemTypeId.LastIndexOf('@');
 
                 var price = new Price
                 {
-                    ItemTypeId = itemTypeID,
+                    ItemTypeId = itemTypeId,
                     LocationId = ((int)location).ToString(),
                     QualityLevel = quality,
                     Timestamp = timestamp.Ticks,
                     UnitPriceSilver = priceHistoryItem["avg_price"].ToObject<long>(),
-                    EnchantmentLevel = indexOfAt >= 0 ? int.Parse(itemTypeID[(indexOfAt + 1)..]) : 0,
+                    EnchantmentLevel = indexOfAt >= 0 ? int.Parse(itemTypeId[(indexOfAt + 1)..]) : 0,
                     VolumeSold = priceHistoryItem["item_count"].ToObject<long>(),
                 };
 
-                tasks.Add(pipeline.Json.SetAsync($"prices:{itemTypeID}:{price.LocationId}:{quality}:{timestamp.Ticks}",
+                tasks.Add(pipeline.Json.SetAsync($"prices:{itemTypeId}:{price.LocationId}:{quality}:{timestamp.Ticks}",
                     "$", JsonConvert.SerializeObject(price)));
             }
         }
@@ -251,12 +251,12 @@ public class Database
     {
         var jObject = JObject.Parse(priceHistoryJSON);
 
-        var itemID = ItemDictionary.ItemNumberToID[jObject["AlbionId"].ToObject<int>()];
+        var itemId = ItemDictionary.ItemNumberToId[jObject["AlbionId"].ToObject<int>()];
         var qualityLevel = jObject["QualityLevel"].Value<int>();
-        var locationID = jObject["LocationId"].Value<string>();
+        var locationId = jObject["LocationId"].Value<string>();
 
-        if (locationID.Equals(((int)MarketLocation.CaerleonAuction2).ToString()))
-            locationID = ((int)MarketLocation.Caerleon).ToString();
+        if (locationId.Equals(((int)MarketLocation.CaerleonAuction2).ToString()))
+            locationId = ((int)MarketLocation.Caerleon).ToString();
 
         var marketHistories = jObject["MarketHistories"].Value<JArray>();
 
@@ -272,7 +272,7 @@ public class Database
             var itemAmount = marketHistoryItem["ItemAmount"].Value<long>();
             var silverAmount = marketHistoryItem["SilverAmount"].ToObject<long>();
 
-            var indexOfAt = itemID.LastIndexOf('@');
+            var indexOfAt = itemId.LastIndexOf('@');
 
             var timestamp = DateTime.FromBinary(long.Parse(marketHistoryItem["Timestamp"].ToString()));
 
@@ -296,22 +296,22 @@ public class Database
 
                 var price = new Price
                 {
-                    ItemTypeId = itemID,
-                    LocationId = locationID,
+                    ItemTypeId = itemId,
+                    LocationId = locationId,
                     QualityLevel = qualityLevel,
                     Timestamp = timestamp.Ticks,
                     UnitPriceSilver = avgPrice,
-                    EnchantmentLevel = indexOfAt >= 0 ? int.Parse(itemID[(indexOfAt + 1)..]) : 0,
+                    EnchantmentLevel = indexOfAt >= 0 ? int.Parse(itemId[(indexOfAt + 1)..]) : 0,
                     VolumeSold = totalVolume,
                 };
 
-                tasks.Add(pipeline.Json.SetAsync($"prices:{itemID}:{locationID}:{qualityLevel}:{timestamp.Ticks}",
+                tasks.Add(pipeline.Json.SetAsync($"prices:{itemId}:{locationId}:{qualityLevel}:{timestamp.Ticks}",
                     "$", JsonConvert.SerializeObject(price)));
 
                 currentTime = timestamp;
             }
             
-            prices.Add(silverAmount / itemAmount / 10000);
+            prices.Add(silverAmount / itemAmount);
             volumes.Add(itemAmount);
         }
 

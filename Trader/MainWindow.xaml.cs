@@ -1,7 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
-using System.Windows.Controls;
 
 namespace Trader;
 
@@ -14,6 +13,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private Listener listener;
 
     public ObservableCollection<Flip> Flips => db.Flips;
+    public ObservableCollection<SalvageInfo> SalvageFlips { get; set; } = new();
+    public ObservableCollection<CraftingInfo> Crafts { get; set; } = new();
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -33,6 +34,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _ = UpgradeUtility.UpdateEnchantPrices();
         craftingFlipsComboBox.ItemsSource = Enum.GetValues<MarketLocation>();
         craftingFlipsComboBox.SelectedIndex = 0;
+        craftingFlipsDestComboBox.ItemsSource = Enum.GetValues<MarketLocation>();
+        craftingFlipsDestComboBox.SelectedIndex = 0;
+        salvageFlipsComboBox.ItemsSource = Enum.GetValues<MarketLocation>();
+        salvageFlipsComboBox.SelectedIndex = 0;
     }
 
     private void OnFlipButtonClick(object sender, RoutedEventArgs e)
@@ -40,7 +45,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         db.GetFlips(MarketLocation.Caerleon, MarketLocation.BlackMarket);
     }
 
-    private void OnCraftingFlipButtonClick(object sender, RoutedEventArgs e)
+    private async void OnCraftingFlipButtonClick(object sender, RoutedEventArgs e)
     {
         if (!int.TryParse(budgetTextBox.Text, out var budget))
             budget = 1000000;
@@ -48,12 +53,26 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (!float.TryParse(dailyVolumePercentage.Text, out var volumePercentage))
             volumePercentage = 65f;
 
-        _ = CraftingUtility.GetCraftingFlips((MarketLocation)craftingFlipsComboBox.SelectionBoxItem, budget,
+        var crafts = await CraftingUtility.GetCraftingFlips((MarketLocation)craftingFlipsComboBox.SelectionBoxItem, (MarketLocation)craftingFlipsDestComboBox.SelectionBoxItem, budget,
             volumePercentage / 100f);
+        Crafts.Clear();
+        foreach (var craft in crafts)
+        {
+            Crafts.Add(craft);
+        }
     }
 
     private void OnTravelingFlipButtonClick(object sender, RoutedEventArgs e)
     {
         _ = TravelingUtility.GetTravelingFlips(true);
+    }
+
+    private async void OnSalvageFlipButtonClick(object sender, RoutedEventArgs e)
+    {
+        var flips = await CraftingUtility.GetSalvageFlips((MarketLocation)salvageFlipsComboBox.SelectionBoxItem);
+
+        SalvageFlips.Clear();
+        foreach (var info in flips)
+            SalvageFlips.Add(info);
     }
 }

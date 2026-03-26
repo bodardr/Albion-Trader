@@ -7,41 +7,81 @@
         mc:Ignorable="d"
         Title="Albion Market Trader" Height="600" Width="900"
         WindowStartupLocation="CenterScreen">
-    
+
     <Grid Margin="12">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/> <RowDefinition Height="Auto"/> <RowDefinition Height="*"/>    </Grid.RowDefinitions>
+        <TabControl Background="Transparent" BorderThickness="0,1,0,0">
 
-        <StackPanel Grid.Row="0" Orientation="Vertical" Margin="0,0,0,15">
+            <TabItem Header="Market Flips">
+                <Grid Margin="0,10,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button Content="Find Black Market Flips" Click="OnFlipButtonClick" Padding="10,5" />
+                    </StackPanel>
+
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding Flips}"
+                              AutoGenerateColumns="True" IsReadOnly="True"
+                              AlternatingRowBackground="#F9F9F9" />
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Crafting">
+                <Grid Margin="0,10,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300" />
+                        <ColumnDefinition Width="2*" />
+                    </Grid.ColumnDefinitions>
+
+                    <DataGrid Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Crafts}"
+                              AutoGenerateColumns="True" IsReadOnly="True" Margin="0,0,10,0"/>
+                    <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button Content="Calculate Profits" Click="OnCraftingFlipButtonClick" Padding="10,5"
+                                Margin="0,0,10,0" />
+                        <ComboBox Name="craftingFlipsComboBox" Width="120" Margin="0,0,10,0" />
+                        <ComboBox Name="craftingFlipsDestComboBox" Width="120" Margin="0,0,10,0" />
+                        <TextBlock Text="Budget:" VerticalAlignment="Center" Margin="0,0,5,0" />
+                        <TextBox Name="budgetTextBox" Text="1000000" Width="80" Margin="0,0,10,0"
+                                 VerticalContentAlignment="Center" />
+                        <TextBlock Text="Vol %:" VerticalAlignment="Center" Margin="0,0,5,0" />
+                        <TextBox Name="dailyVolumePercentage" Text="65" Width="40" VerticalContentAlignment="Center" />
+                    </StackPanel>
+
+                    <Border Grid.Row="1" Grid.Column="0" Background="#F0F2F5" CornerRadius="5" Padding="10">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="RESOURCES TO BUY" FontWeight="Bold" Margin="0,0,0,5"
+                                       Foreground="#444" />
+                            <ListBox ItemsSource="{Binding ShoppingList}" Background="Transparent" BorderThickness="0" />
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Salvaging">
+                <Grid Margin="0,10,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button Content="Find Salvage Flips" Click="OnSalvageFlipButtonClick" Padding="10,5"
+                                Margin="0,0,10,0" />
+                        <ComboBox Name="salvageFlipsComboBox" Width="120" Margin="0,0,10,0" />
+                    </StackPanel>
+
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding SalvageFlips}"
+                              AutoGenerateColumns="True" IsReadOnly="True"
+                              AlternatingRowBackground="#F9F9F9" />
+                </Grid>
+            </TabItem>
             
-            <Button Content="Find Flips" Click="OnFlipButtonClick" Padding="10,5" HorizontalAlignment="Left" Margin="0,0,0,10"/>
-            
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                <Button Content="Find Crafting Flips" Click="OnCraftingFlipButtonClick" Padding="10,5" Margin="0,0,10,0"/>
-                <ComboBox Name="craftingFlipsComboBox" Width="150" Margin="0,0,10,0" VerticalContentAlignment="Center"/>
-                
-                <TextBlock Text="Budget:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                <TextBox Name="budgetTextBox" Text="1000000" Width="100" Margin="0,0,15,0" VerticalContentAlignment="Center"/>
-                
-                <TextBlock Text="Volume %:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                <TextBox Name="dailyVolumePercentage" Text="65" Width="50" VerticalContentAlignment="Center"/>
-            </StackPanel>
-
-            <Button Content="Find Traveling Flips" Click="OnTravelingFlipButtonClick" Padding="10,5" HorizontalAlignment="Left"/>
-        </StackPanel>
-
-        <TextBlock Grid.Row="1" Text="Available Flips" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,5"/>
-
-        <DataGrid Grid.Row="2" 
-                  ItemsSource="{Binding Flips}"
-                  AutoGenerateColumns="True"
-                  CanUserSortColumns="True"
-                  IsReadOnly="True"
-                  AlternatingRowBackground="#FFF0F0F0"
-                  EnableRowVirtualization="True"
-                  EnableColumnVirtualization="True"
-                  VirtualizingStackPanel.IsVirtualizing="True"
-                  VirtualizingStackPanel.VirtualizationMode="Recycling">
-        </DataGrid>
+        </TabControl>
     </Grid>
 </Window>

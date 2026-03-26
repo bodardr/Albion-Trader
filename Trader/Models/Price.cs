@@ -8,7 +8,7 @@ public class Price
     public string ItemGroupTypeId => ItemTypeId[^1] == '@' ? ItemTypeId[..^2] : ItemTypeId;
 
     public string LocationId { get; set; }
-    public string LocationName => ItemDictionary.LocationIDToName.GetValueOrDefault(LocationId) ?? string.Empty;
+    public string LocationName => ItemDictionary.LocationIdToName.GetValueOrDefault(LocationId) ?? string.Empty;
 
     public long UnitPriceSilver { get; set; }
     public long QualityLevel { get; set; }

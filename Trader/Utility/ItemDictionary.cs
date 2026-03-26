@@ -5,9 +5,9 @@ namespace Trader;
 public static class ItemDictionary
 {
     public static readonly Dictionary<string, string> IdToName = new();
-    public static readonly Dictionary<string, string> LocationIDToName = new();
+    public static readonly Dictionary<string, string> LocationIdToName = new();
     public static readonly Dictionary<string, Item> Items = new();
-    public static readonly Dictionary<int, string> ItemNumberToID = new();
+    public static readonly Dictionary<int, string> ItemNumberToId = new();
 
     public static void Initialize()
     {
@@ -29,9 +29,9 @@ public static class ItemDictionary
                 continue;
             }
 
-            var itemID = lineSplit[1].Trim();
-            ItemNumberToID[int.Parse(lineSplit[0])] = itemID;
-            IdToName[itemID] = lineSplit[2].Trim();
+            var itemId = lineSplit[1].Trim();
+            ItemNumberToId[int.Parse(lineSplit[0])] = itemId;
+            IdToName[itemId] = lineSplit[2].Trim();
         }
     }
 
@@ -48,7 +48,7 @@ public static class ItemDictionary
                 continue;
             }
 
-            LocationIDToName[lineSplit[0].Trim()] = lineSplit[1].Trim();
+            LocationIdToName[lineSplit[0].Trim()] = lineSplit[1].Trim();
         }
     }
     private static void ParseItems()
@@ -62,11 +62,14 @@ public static class ItemDictionary
 
         var simpleItems = items["simpleitem"];
         var equipmentItems = items["equipmentitem"];
+        var weapons = items["weapon"];
 
         AddItemsToDict(simpleItems);
-        AddItemsToDict(equipmentItems);
+        AddItemsToDict(equipmentItems, true);
+        AddItemsToDict(weapons);
     }
-    private static void AddItemsToDict(JToken? simpleItem)
+
+    private static void AddItemsToDict(JToken? simpleItem, bool overrideSalvageable = false)
     {
         foreach (var item in simpleItem)
         {
@@ -83,6 +86,8 @@ public static class ItemDictionary
             }
 
             var itemObj = item.ToObject<Item>();
+            if (overrideSalvageable)
+                itemObj.Salvageable = true;
             Items.TryAdd(itemObj.UniqueName, itemObj);
         }
     }
